@@ -8,8 +8,6 @@ if os.path.exists(MEANINGLESS_WORDS_FILE):
     with open(MEANINGLESS_WORDS_FILE, mode="r") as f:
         MEANINGLESS_WORDS = [x.strip() for x in f.readlines()]
 
-print(MEANINGLESS_WORDS)
-
 def removeBetweenTags(txt, tag):
     regex = r"(<" + tag + ">.+?<\/" + tag + ">)"
     matches = re.finditer(regex, txt, re.MULTILINE | re.DOTALL)
@@ -42,6 +40,10 @@ def getWords(txt):
         found = match.group(0).strip()
         result.append(found)
     return result
+
+def getAllInstances(txt, toFind):
+    result = re.findall(toFind, txt)
+    return list(result)
 
 def countInstances(txt, toFind):
     result = len(re.findall(toFind, txt))

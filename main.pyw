@@ -6,6 +6,8 @@ from pathlib import Path
 import datetime
 import logging
 import importlib
+import utility
+import math
 
 ## Initialization
 # Save logs to Logs directory
@@ -89,15 +91,13 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
     """
 
     resultOkWrong = dict()
-    #allKeyWords = list()
-    HQKeyWords=list()
-    LQKeyWords=list()
     with open(dbFilePath, mode="r", encoding="utf-8") as database:
         database_reader = reader(database, delimiter=",",
                                 quotechar='"', quoting=QUOTE_MINIMAL)
 
         # check how many entries
-        report_every = (len(list(database_reader)) - 1) / 100
+        all_items_count = len(list(database_reader)) - 1
+        report_every = all_items_count / 100
         current_counter = report_every
         prog = 0
 
@@ -109,18 +109,22 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
             raise Exception(f"Sorry, files doesn't contain target column '{targetColName}',"
                             + f" found following columns: {columns}")
 
+        keywords = dict()
         for row in database_reader:
             row_dict = dict(zip(columns, row))
-            if row_dict["Y"]=="HQ":
-                HQKeyWords+=evaluator.trimBodyWords(row_dict)
+            if row_dict["Y"] in ["HQ", "LQ_CLOSE"]:
+                words = evaluator.trimBodyWords(row_dict)
+                words = utility.clearMeaningless(words)
+                for word in words:
+                    if word not in keywords:
+                        keywords[word] = 0
+                    keywords[word] += 1
 
-            else:
-                LQKeyWords+=evaluator.trimBodyWords(row_dict)
-        HQKeyWords = evaluator.formatKeyWords(HQKeyWords)
-        LQKeyWords = evaluator.formatKeyWords(LQKeyWords)
-        for key, value in HQKeyWords.items():
-            print(key , ' :: ', value)
-        HQKeyWords
+        for key, value in keywords.items():
+            keywords[key] = math.log10(all_items_count/value)
+        
+        evaluator.keywords = keywords
+
       # reread file and analyze data
         database.seek(0)
         columns = list(next(database_reader, None))
@@ -393,13 +397,13 @@ class ExpertSystemGUI():
 
             evaluator = importlib.import_module(evalFilePath)
 
-            # unlock to see each recognized row
-            #convertedDb(csvFilePath, "_" + csvFile, evaluator=evaluator)
-
             # summary of testing
             result = examineFile(
                 csvFilePath, evaluator=evaluator,
                 reportProgress=self.reportProgress)
+
+            # unlock to see each recognized row
+            #convertedDb(csvFilePath, "_" + csvFile, evaluator=evaluator)
 
             self.execute_on_gui(
                 f"Updating score",
