@@ -119,6 +119,7 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
             else:
                 LQKeyWords+=evaluator.trimBodyWords(row_dict)
         HQKeyWords = evaluator.formatKeyWords(HQKeyWords)
+        LQKeyWords = evaluator.formatKeyWords(LQKeyWords)
         for key, value in HQKeyWords.items():
             print(key , ' :: ', value)
         HQKeyWords
