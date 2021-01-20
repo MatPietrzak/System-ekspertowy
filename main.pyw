@@ -91,7 +91,9 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
     """
 
     resultOkWrong = dict()
-
+    #allKeyWords = list()
+    HQKeyWords=list()
+    LQKeyWords=list()
     with open(dbFilePath, mode="r", encoding="utf-8") as database:
         database_reader = reader(database, delimiter=",",
                                 quotechar='"', quoting=QUOTE_MINIMAL)
@@ -101,7 +103,7 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
         current_counter = report_every
         prog = 0
 
-        # reread file and analyze data
+        # reread file and  find key words in all data
         database.seek(0)
         columns = list(next(database_reader, None))
 
@@ -109,6 +111,24 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
             raise Exception(f"Sorry, files doesn't contain target column '{targetColName}',"
                             + f" found following columns: {columns}")
 
+        for row in database_reader:
+            row_dict = dict(zip(columns, row))
+            if row_dict["Y"]=="HQ":
+                HQKeyWords+=evaluator.trimBodyWords(row_dict)
+
+            else:
+                LQKeyWords+=evaluator.trimBodyWords(row_dict)
+        HQKeyWords = evaluator.formatKeyWords(HQKeyWords)
+        for key, value in HQKeyWords.items():
+            print(key , ' :: ', value)
+        HQKeyWords
+      # reread file and analyze data
+        database.seek(0)
+        columns = list(next(database_reader, None))
+
+        if targetColName not in columns:
+            raise Exception(f"Sorry, files doesn't contain target column '{targetColName}',"
+                            + f" found following columns: {columns}")
         for row in database_reader:
             row_dict = dict(zip(columns, row))
             expected = row_dict[targetColName]
@@ -199,6 +219,7 @@ class ExpertSystemGUI():
             window = XamlReader.Load(stream.BaseStream)
 
             self.cmbProject = window.FindName("cmbProject")
+            self.cmbProject.IsEnabled=True
             self.cmbData = window.FindName("cmbData")
             self.cmbEval = window.FindName("cmbEval")
             self.viewScore = window.FindName("viewScore")

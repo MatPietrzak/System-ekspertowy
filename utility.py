@@ -1,5 +1,6 @@
 import re
 
+
 def removeBetweenTags(txt, tag):
     regex = r"(<" + tag + ">.+?<\/" + tag + ">)"
     matches = re.finditer(regex, txt, re.MULTILINE | re.DOTALL)
@@ -21,6 +22,16 @@ def cleanHtmlTags(txt):
         found = match.group(0)
         result = result.replace(found, "")
 
+    return result
+
+def getWords(txt):
+    regex = r"[a-zA-Z][a-zA-Z']*"
+    matches = re.finditer(regex, txt, re.MULTILINE)
+    result = []
+
+    for matchNum, match in enumerate(matches, start=1):
+        found = match.group(0).strip()
+        result.append(found)
     return result
 
 def countInstances(txt, toFind):
