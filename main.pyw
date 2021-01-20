@@ -31,14 +31,12 @@ try:
     import clr
     clr.AddReference(r"wpf\PresentationFramework")
 
-    from System.IO import StreamReader
-    import System
-    from System import String, Action, Tuple
-    from System.Windows.Markup import XamlReader
-    from System.Windows import Application, Window
-    from System.Windows.Controls import Button, TextBox, Control, Label, ToolTip
-    from System.Threading import Thread, ThreadStart, ApartmentState
-    from System.Collections.Generic import Dictionary
+    from System.IO import StreamReader # pylint: disable=import-error
+    from System import Action, Tuple # pylint: disable=import-error
+    from System.Windows.Markup import XamlReader # pylint: disable=import-error
+    from System.Windows import Application # pylint: disable=import-error
+    from System.Threading import Thread, ThreadStart, ApartmentState # pylint: disable=import-error
+    from System.Collections.Generic import Dictionary # pylint: disable=import-error
 
     if getattr(sys, "frozen", False):
         PATH = os.path.abspath(os.path.dirname(sys.executable))
@@ -147,14 +145,12 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
 
     rowOk = sum(entry["ok"] for _, entry in resultOkWrong.items())
     rowWrong = sum(entry["wrong"] for _, entry in resultOkWrong.items())
-    rowAll = rowOk + rowWrong
 
     result = dict()
     result["ALL"] = createEntry(rowOk, rowWrong)
     for name, entry in resultOkWrong.items():
         nameOk = entry["ok"]
         nameWrong =  entry["wrong"]
-        nameAll = nameOk + nameWrong
         result[name] = createEntry(nameOk, nameWrong)
     return result
 
