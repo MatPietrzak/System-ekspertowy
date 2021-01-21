@@ -6,7 +6,13 @@ MEANINGLESS_WORDS_FILE = r"Resources\meaningless_words.txt"
 MEANINGLESS_WORDS = []
 if os.path.exists(MEANINGLESS_WORDS_FILE):
     with open(MEANINGLESS_WORDS_FILE, mode="r") as f:
-        MEANINGLESS_WORDS = [x.strip() for x in f.readlines()]
+        MEANINGLESS_WORDS = set([x.strip() for x in f.readlines()])
+
+CORRECT_WORDS_FILE = r"Resources\words_alpha.txt"
+CORRECT_WORDS = []
+if os.path.exists(CORRECT_WORDS_FILE):
+    with open(CORRECT_WORDS_FILE, mode="r") as f:
+        CORRECT_WORDS = set([x.strip() for x in f.readlines() if x not in MEANINGLESS_WORDS])
 
 def remove_between_tags(content, tag):
     """
@@ -113,9 +119,9 @@ def clear_meaningless(words):
         Returnes text with cleaned from meaningless words
     """
 
-    return [word for word in words if word not in MEANINGLESS_WORDS]
+    return [word for word in words if word in CORRECT_WORDS]
 
-def normalize(values, mn=100):
+def normalize(values, mn=1):
     """
     Normalizes all values on the list
 

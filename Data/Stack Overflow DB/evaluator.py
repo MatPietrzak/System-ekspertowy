@@ -28,7 +28,7 @@ COLUMNS_OPTIONS = [
 COLUMNS = [option[0] for option in COLUMNS_OPTIONS]
 
 IDFS = dict()
-KEYWORD_THRESHOLD = 0.1
+KEYWORD_THRESHOLD = 0.0
 
 def learn(data, report_progress):
     global IDFS
@@ -140,10 +140,10 @@ def classify(data):
         Recognized category
     """
 
-    if data[TAG_TEXTVECTORDENSITY] <= 99.88:
+    if data[TAG_TEXTVECTORDENSITY] <= 0.9988:
         return "LQ_EDIT"
     else:
-        if data[TAG_KEYWORDCOUNT50PCT] <= 1.04 and data[TAG_KEYWORDDENSITY] <= 1.02:
+        if data[TAG_KEYWORDCOUNT50PCT] <= 0.0104 and data[TAG_KEYWORDDENSITY] <= 0.0102:
             return "LQ_CLOSE"
 
     return "HQ"
