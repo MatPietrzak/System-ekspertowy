@@ -28,7 +28,7 @@ COLUMNS_OPTIONS = [
 COLUMNS = [option[0] for option in COLUMNS_OPTIONS]
 
 IDFS = dict()
-KEYWORD_THRESHOLD = 0.00
+KEYWORD_THRESHOLD = 0.1
 
 def learn(data, report_progress):
     global IDFS
@@ -78,8 +78,6 @@ def process_database(data, report_progress):
                 V = IDF * TF
                 if V > KEYWORD_THRESHOLD:
                     keywords.append(word)
-                else:
-                    print("|", end="")
 
         # all keywords in text, duplicates, same order
         words_only_keywords = [word for word in words_clean if word in keywords]
