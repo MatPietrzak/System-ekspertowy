@@ -60,7 +60,7 @@ def examineFile(dbFilePath, classifier, configure_progress, report_progress, is_
         * targetColName: name of the target column [str]
     """
 
-    configure_progress(0, 0.05, "Loading data")
+    configure_progress(0, 0.05, "Ładowanie danych")
     # prepare data
     all_records = [] # all avaiable data but without TARGET COLUMN
     target_values = [] # moved target column
@@ -88,21 +88,21 @@ def examineFile(dbFilePath, classifier, configure_progress, report_progress, is_
     # on validating don't call is_learning
     q = [0.4, 45]
     if is_learnig:
-        configure_progress(5, 0.4, "Learning")
+        configure_progress(5, 0.4, "Trenowanie")
         classifier.learn(all_records, report_progress)
     else:
         q = [0.8, 5]
-    configure_progress(q[1], q[0], "Processing data")
+    configure_progress(q[1], q[0], "Przetwarzanie")
     processed_data = classifier.process_database(all_records, report_progress)
 
-    configure_progress(85, 0.05, "Saving new db")
+    configure_progress(85, 0.05, "Zapisywanie bazy")
     if save_converted:
         _columns = processed_data[0].keys()
         with open("learning.csv", mode="w", encoding="utf-8") as converted:
             converted.write(",".join(_columns) + "\n")
             converted.write("\n".join([",".join([str(value[col]) for col in _columns]) for value in processed_data]))
 
-    configure_progress(95, 0.1, "Classifing")
+    configure_progress(95, 0.1, "Klasyfikacja")
     resultOkWrong = dict()
     for i, expected in enumerate(target_values):
         result = classifier.classify(processed_data[i])
@@ -365,7 +365,7 @@ class ExpertSystemGUI():
                 f"Initializing evaluation",
                 lambda: init(self.viewScore)
             )
-            self.configure_progress(0, 0, "Initialization..", False)
+            self.configure_progress(0, 0, "Inicjalizacja..", False)
             self.reportProgress(0)
 
             self.execute_on_gui(f"Get Train CSV file path", lambda: self.currentCsvFilePath(True))
@@ -398,7 +398,7 @@ class ExpertSystemGUI():
                 f"Updating score",
                 lambda: setItems(self.viewScore, result_validating)
             )
-            self.configure_progress(100, 0, "Result ready!")
+            self.configure_progress(100, 0, "Wynik gotowy!")
             self.reportProgress(100)
         except Exception as ex:
             LOGGER.error(ex)
