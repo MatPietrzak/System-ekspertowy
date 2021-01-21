@@ -119,7 +119,7 @@ def clear_meaningless(words):
         Returnes text with cleaned from meaningless words
     """
 
-    return [word for word in words if word in CORRECT_WORDS]
+    return [word for word in words if word in CORRECT_WORDS and len(word) > 2]
 
 def normalize(values, mn=1):
     """
@@ -171,6 +171,32 @@ def count_objects_instances(values):
             counters[val] = 0
         counters[val] += 1
     return counters
+
+def label_objects(values):
+    """
+    List of object being a pair of key string and value float
+
+    :Args:
+        * values: data to be analyzed [str]
+
+    **Returns**
+        Maps key of dictionary to same category as items with same value,
+        Before assigning values are sorted descendingly
+    """
+
+    result = dict()
+    if not values:
+        return result
+    tmp = [(v, k) for k, v in values.items()]
+    tmp.sort(reverse=True)
+    last_value = tmp[0][0]
+    current_category = 0
+    for v, k in tmp:
+        if last_value != v:
+            current_category += 1
+        result[k] = current_category 
+        last_value = v
+    return result
 
 class ProgressCounter():
 
