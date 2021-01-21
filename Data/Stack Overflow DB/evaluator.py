@@ -1,156 +1,151 @@
 import utility
+import math
 
-keywords = dict()
-all_tags = ['javascript', 'python', 'java', 'android', 'php', 'c#', 'html', 'c++', 'css', 'jquery', 'c', 'arrays', 'ios', 'sql', 'mysql', 'swift', 'angular', 'python-3.x', 'reactjs', 'r', 'regex', 'node.js', 'sql-server', 'string', 'json', 'typescript', 'linux', 'excel', 'docker', '.net', 'list', 'pandas', 'android-studio', 'react-native', 'ruby', 'vba', 'asp.net', 'laravel', 'xcode', 'git', 'flutter', 'database', 'firebase', 'go', 'amazon-web-services', 'bash', 'angularjs', 'kotlin', 'algorithm', 'visual-studio', 'django', 'function', 'python-2.7', 'vue.js', 'spring', 'wordpress', 'ruby-on-rails', 'oracle', 'windows']    
+TAG_KEYWORDCOUNTFIRSTPAR = "KeywordCountFirstPar"
+TAG_KEYWORDCOUNTLASTPAR = "KeywordCountLastPar"
+TAG_KEYWORDCOUNT20PCT = "KeywordCount20Pct"
+TAG_KEYWORDCOUNT50PCT = "KeywordCount50Pct"
+TAG_KEYWORDDENSITY = "KeywordDensity"
+TAG_ALLWORDSCOUNT = "AllWordsCount"
+TAG_RATIOREMOVEDTOALL = "RatioRemovedToAll"
+TAG_TEXTVECTORDENSITY = "TextVectorDensity"
+TAG_FIRSTKEYWORD = "FirstKeyword"
+TAG_MOSTFREQUENTKEYWORD = "MostFrequentKeyword"
 
-TAG_BODY_LENGTH = "BodyLength"
-TAG_CLEANBODY_LENGTH = "CleanBodyLength"
-TAG_TITLE_LENGTH = "TitleLength"
-TAG_BODY_WORDS = "BodyWords"
-TAG_CLEANBODY_WORDS = "CleanBodyWords"
-TAG_TITLE_WORDS = "TitleWords"
-TAG_CONTAINS_CODE = "ContainsCode"
-TAG_NUMBER_PARAGRAPHS = "ParagraphsCount"
-TAG_LINK_COUNT = "LinkCount"
-TAG_LINKELIVE_COUNT = "LinkLiveCount"
-TAG_AVG_WORDS_PER_PARAGRAPH = "AvgWordsPerParagraph"
-TAG_TITLE_WORDS_IN_TEXT = "TitleWordsInCount"
-TAG_TAGSCOUNT = "TagsCount"
-TAG_HQ_COUNTER = "HqCount"
-TAG_LQ_COUNTER = "LqCount"
-TAG_TAG_POPULAR = "IsPopularTag"
-TAG_TAG_PYTHON = "IsPython"
-TAG_TAG_JAVA_JQUERY = "JavaJquery"
-TAG_KEYWORDS = "TagsKeywords"
-TAG_GESTOSC = "TagsGestosc"
-TAG_GESTOSC_WEKTORA_SLOW = "TagsGestoscWektoraSlow"
-TAG_WORDS_CLEANED = "TagsWordsCleaned"
-TAG_WORDS_COUNT = "TagsWordsCount"
+COLUMNS_OPTIONS = [
+    #(TAG_KEYWORDCOUNTFIRSTPAR, True),
+    #(TAG_KEYWORDCOUNTLASTPAR, True),
+    (TAG_KEYWORDCOUNT20PCT, True),
+    (TAG_KEYWORDCOUNT50PCT, True),
+    (TAG_KEYWORDDENSITY, True),
+    (TAG_ALLWORDSCOUNT, True),
+    (TAG_RATIOREMOVEDTOALL, True),
+    (TAG_TEXTVECTORDENSITY, True),
+    (TAG_FIRSTKEYWORD, False),
+    (TAG_MOSTFREQUENTKEYWORD, False)
+]
 
-COUNTER = 0
+COLUMNS = [option[0] for option in COLUMNS_OPTIONS]
 
-def parseRow(data):
+IDFS = dict()
+KEYWORD_THRESHOLD = 0.00
+
+def learn(data, report_progress):
+    global IDFS
+
+    reporter = utility.ProgressCounter(len(data), report_progress)
+
+    # computing Inverse Document Frequency
+    words_counters = dict()
+    all_items_count = len(data)
+    for row_dict in data:
+        if row_dict["Y"] in ["HQ", "LQ_CLOSE"]:
+            words = utility.trim_body_words(row_dict["Body"])
+            words = utility.clear_meaningless(words)
+            words = list(set(words)) # no duplicats, we need unique occurences of words
+            for word in words:
+                if word not in words_counters:
+                    words_counters[word] = 0
+                words_counters[word] += 1
+
+        reporter.next()
+
+    for key, value in words_counters.items():
+        IDFS[key] = math.log10(all_items_count/value)
+
+    return ["HQ"] * len(data)
+
+def process_database(data, report_progress):
+    processed_data = []
+
+    reporter = utility.ProgressCounter(len(data), report_progress)
+
+    for record in data:
+        words_all = utility.trim_body_words(record["Body"])
+        words_clean = utility.clear_meaningless(words_all)
+        words_counter = utility.count_objects_instances(words_all)
+
+        L = len(words_all)
+        Z = L - len(words_clean)
+
+        # computing keywords
+        keywords = []
+        for word in words_all:
+            if word in IDFS:
+                IDF = IDFS[word]
+                S = words_counter[word]
+                TF = S / L if L > 0 else 0
+                V = IDF * TF
+                if V > KEYWORD_THRESHOLD:
+                    keywords.append(word)
+                else:
+                    print("|", end="")
+
+        # all keywords in text, duplicates, same order
+        words_only_keywords = [word for word in words_clean if word in keywords]
+
+        # 2.1.1  count of keywords in first paragraph
+        #C1 = None
+        # 2.1.2  count of keywords in last paragraph
+        #C2 = None
+        # 2.1.3  count of keywords in first 20%
+        words_20pct = words_all[:int(0.2*L)]
+        keywords_20pct = [word for word in words_20pct if word in keywords]
+        C3 = len(keywords_20pct)
+        # 2.1.4  count of keywords in first 50%
+        words_50pct = words_all[:int(0.5*L)]
+        keywords_50pct = [word for word in words_50pct if word in keywords]
+        C4 = len(keywords_50pct)
+        # 2.1.5  density of keywords
+        Q = sum([words_counter[word] for word in keywords if word in words_counter])
+        C5 = Q / L if L > 0 else 0
+        # 2.1.6  count of all words
+        C6 = L
+        # 2.1.7  ratio of removed words to all words
+        C7 = Z / L if L > 0 else 0
+        # 2.1.8  density of text vector
+        T = sum([words_counter[word] for word in words_clean])
+        C8 = Q / T if T > 0 else 0
+        # 2.1.9  first keyword in text
+        C9 = words_only_keywords[0] if words_only_keywords else ""
+        # 2.1.10 most frequent keyword in text
+        words_only_keywords_counter = utility.count_objects_instances(words_only_keywords)
+        k_vector = [(counter, word) for word, counter in words_only_keywords_counter.items()]
+        k_vector.sort(reverse=True)
+        C10 = k_vector[0][1] if k_vector else ""
+
+        ready_vector = [C3, C4, C5, C6, C7, C8, C9, C10]
+        if "Y" in record:
+            ready_vector.append(record["Y"])
+            COLUMNS_OPTIONS.append(("Y", False))
+            COLUMNS.append("Y")
+        processed_data.append(dict(zip(COLUMNS, ready_vector)))
+        reporter.next()
+
+    for i, col in enumerate(COLUMNS):
+        if COLUMNS_OPTIONS[i][1]:
+            values = [vector[col] for vector in processed_data]
+            values = utility.normalize(values)
+            for j, vector in enumerate(processed_data):
+                vector[col] = values[j]
+
+    return processed_data
+
+def classify(data):
     """
-    Parses row and return dictionary to be examined
+    Classifies data to some group
 
     :Args:
-        * data: data to be converted to dictionary
-    """
-    global COUNTER
-
-    text = utility.removeBetweenTags(data["Body"], "pre")
-    text = utility.cleanHtmlTags(text)
-    words = utility.getWords(text)
-
-    tags = utility.getAllInstances(data["Tags"], r"<([^>]*)>")
-    words_title = utility.getWords(data["Title"])
-
-    # słowa kluczowe
-    words_freq = formatKeyWords(words)
-    for key, _ in words_freq.items():
-        words_freq[key] /= len(words)
+        * data: data to be assigned [converted entry]
     
-    words_significant = list()
-    for key, value in words_freq.items():
-        if key in keywords:
-            words_significant.append((keywords[key] * value, key))
-
-    words_significant.sort(reverse=True)
-
-    # stosunek usuniętych słów do wszystkich słów
-    words_cleaned = utility.clearMeaningless(words)
-
-    result = {
-        # TAG_BODY_LENGTH: len(data["Body"]),
-        # TAG_CLEANBODY_LENGTH: len(text),
-        # TAG_TITLE_LENGTH: len(data["Title"]),
-        # TAG_BODY_WORDS: len(data["Body"].split(" ")),
-        # TAG_CLEANBODY_WORDS: len(data["Body"].split(" ")),
-        # TAG_TITLE_WORDS: len(data["Title"].split(" ")),
-        # TAG_CONTAINS_CODE: "<code>" in data["Body"],
-        # TAG_LINK_COUNT: len(data["Body"].split("<a ")) - 1,
-        # TAG_LINKELIVE_COUNT: sum([utility.countInstances(data["Body"], regex) for regex in [r"jsfiddle.net"]]),
-        # TAG_NUMBER_PARAGRAPHS: len(data["Body"].split("<p>")) - 1,
-        # TAG_TAGSCOUNT: utility.countInstances(data["Tags"], r"<[^>]*>"),
-        # TAG_KEYWORDS: sum([1 for word in words if word in keywords]) / len(words) if len(words) > 0 else 0,
-        # TAG_TAG_POPULAR: any([x in tags for x in all_tags]),
-        # TAG_TAG_PYTHON: "python" in tags,
-        TAG_GESTOSC: len(words_significant) / len(words) if len(words) > 0 else 0,
-        TAG_GESTOSC_WEKTORA_SLOW: len(words_significant) / len(words_cleaned) if len(words) > 0 else 0,
-        TAG_WORDS_CLEANED: (len(words) - len(words_cleaned)) / len(words) if len(words) > 0 else 0,
-        TAG_WORDS_COUNT: len(words)
-    }
-
-    #result[TAG_AVG_WORDS_PER_PARAGRAPH] = result[TAG_BODY_WORDS]/result[TAG_NUMBER_PARAGRAPHS] if result[TAG_NUMBER_PARAGRAPHS] > 0 else 0
-    return result
-
-def examineEntry(data):
-    """
-    Returns expected result for entry
-
-    :Args:
-        * data: converted row of data to dictionary [dict]
+    **Returns**
+        Recognized category
     """
 
-    # if data[TAG_NUMBER_PARAGRAPHS] == 0:
-    #     return "LQ_EDIT"
+    if data[TAG_TEXTVECTORDENSITY] <= 99.88:
+        return "LQ_EDIT"
+    else:
+        if data[TAG_KEYWORDCOUNT50PCT] <= 1.04 and data[TAG_KEYWORDDENSITY] <= 1.02:
+            return "LQ_CLOSE"
 
-    #if data[TAG_HQ_COUNTER] > 3 and data[TAG_CONTAINS_CODE]:
-    #    return "HQ"
-
-    #if data[TAG_HQ_COUNTER] == 0 and not data[TAG_CONTAINS_CODE]:
-    #    return "LQ_CLOSE"
-
-    # if data[TAG_LINK_COUNT] > 0:
-    #     return "HQ"
-
-    # if data[TAG_CLEANBODY_LENGTH] <= 580:
-    #     return "LQ_CLOSE"
-
-    # return "HQ" 
-
-
-def trimBodyWords(data):
-    row = utility.removeBetweenTags(data["Body"], "pre")
-    row = utility.cleanHtmlTags(row)
-    row=row.lower()
-    wordList=utility.getWords(row)
-    #wordList= row.split()
-    #wordList = list(set(wordList))
-    return wordList
-
-def getDuplicatesWithCount(wordList):
-    ''' Get frequency count of duplicate elements in the given list 
-
-        :Args:
-        * wordList: converted row of data to dictionary [dict]
-    '''
-    wordDict = dict()
-    # Iterate over each element in list
-    for elem in wordList:
-        # If element exists in dict then increment its value else add it in dict
-        if elem in wordDict:
-            wordDict[elem] += 1
-        else:
-            wordDict[elem] = 1    
- 
-    # Filter key-value pairs in dictionary. Keep pairs whose value is greater than 1 i.e. only duplicate elements from list.
-    wordDict = { key:value for key, value in wordDict.items() if value > 1}
-    # Returns a dict of duplicate elements and thier frequency count
-    return wordDict
-    
-def formatKeyWords(keyWords):
-    keyWords = [x for x in keyWords if len(x) > 2]
-    keyWords = utility.clearMeaningless(keyWords)
-    keyWords=getDuplicatesWithCount(keyWords)
-    
-    #Sort dictionary by values
-    # sorted_values = sorted(keyWords.values()) # Sort the values
-    # sorted_dict = {}
-    # for i in sorted_values:
-    #     for k in keyWords.keys():
-    #         if keyWords[k] == i:
-    #             sorted_dict[k] = keyWords[k]
-    #             break
-
-    return keyWords
+    return "HQ"

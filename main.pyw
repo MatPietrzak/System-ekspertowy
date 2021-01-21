@@ -8,6 +8,7 @@ import logging
 import importlib
 import utility
 import math
+import traceback
 
 ## Initialization
 # Save logs to Logs directory
@@ -50,38 +51,7 @@ except Exception as ex:
     LOGGER.error(ex)
 
 ## General methods
-def convertedDb(dbFilePath, dbConvertedFilePath, evaluator, targetColName="Y"):
-    """
-    Converts raw database to full CSV
-
-    :Args:
-        * dbFilePath: path to the database file [path]
-        * dbConvertedFilePath: path where to save generated file [path]
-        * targetColName: name of the target column [str]
-    """
-
-    columnsTarget = None
-    values = []
-
-    with open(dbFilePath, mode="r", encoding="utf-8") as database:
-
-        database_reader = reader(database, delimiter=",",
-                                quotechar='"', quoting=QUOTE_MINIMAL)
-        columns = list(next(database_reader, None))
-        for row in database_reader:
-            row_dict = dict(zip(columns, row))
-            row_converted = evaluator.parseRow(row_dict)
-            row_converted[targetColName] = row_dict[targetColName]
-            if columnsTarget is None:
-                columnsTarget = list(row_converted.keys())
-            value = [str(row_converted[key]) for key in columnsTarget]
-            values.append(value)
-
-    with open(dbConvertedFilePath, mode="w", encoding="utf-8") as converted:
-        converted.write(",".join(columnsTarget) + "\n")
-        converted.write("\n".join([",".join(value) for value in values]))
-
-def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
+def examineFile(dbFilePath, classifier, configure_progress, report_progress, is_learnig=True, targetColName="Y", save_converted=False):
     """
     Loads file and examine each entry
 
@@ -90,42 +60,17 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
         * targetColName: name of the target column [str]
     """
 
-    resultOkWrong = dict()
+    configure_progress(0, 0.05, "Loading data")
+    # prepare data
+    all_records = [] # all avaiable data but without TARGET COLUMN
+    target_values = [] # moved target column
+
     with open(dbFilePath, mode="r", encoding="utf-8") as database:
         database_reader = reader(database, delimiter=",",
                                 quotechar='"', quoting=QUOTE_MINIMAL)
+        all_count = len(list(database_reader)) - 1
+        reporter = utility.ProgressCounter(all_count, report_progress)
 
-        # check how many entries
-        all_items_count = len(list(database_reader)) - 1
-        report_every = all_items_count / 100
-        current_counter = report_every
-        prog = 0
-
-        # reread file and  find key words in all data
-        database.seek(0)
-        columns = list(next(database_reader, None))
-
-        if targetColName not in columns:
-            raise Exception(f"Sorry, files doesn't contain target column '{targetColName}',"
-                            + f" found following columns: {columns}")
-
-        keywords = dict()
-        for row in database_reader:
-            row_dict = dict(zip(columns, row))
-            if row_dict["Y"] in ["HQ", "LQ_CLOSE"]:
-                words = evaluator.trimBodyWords(row_dict)
-                words = utility.clearMeaningless(words)
-                for word in words:
-                    if word not in keywords:
-                        keywords[word] = 0
-                    keywords[word] += 1
-
-        for key, value in keywords.items():
-            keywords[key] = math.log10(all_items_count/value)
-        
-        evaluator.keywords = keywords
-
-      # reread file and analyze data
         database.seek(0)
         columns = list(next(database_reader, None))
 
@@ -134,18 +79,36 @@ def examineFile(dbFilePath, evaluator, targetColName="Y", reportProgress=None):
                             + f" found following columns: {columns}")
         for row in database_reader:
             row_dict = dict(zip(columns, row))
-            expected = row_dict[targetColName]
-            del row_dict[targetColName]
-            row_converted = evaluator.parseRow(row_dict)
-            result = evaluator.examineEntry(row_converted)
-            if expected not in resultOkWrong:
-                resultOkWrong[expected] = {"ok": 0, "wrong": 0}
-            resultOkWrong[expected]["ok" if expected == result else "wrong"] += 1
-            current_counter -= 1
-            if current_counter <= 0:
-                prog += 1
-                reportProgress(prog)
-                current_counter = report_every
+            target_values.append(row_dict[targetColName])
+            if not is_learnig:
+                del row_dict[targetColName]
+            all_records.append(row_dict)
+            reporter.next()
+
+    # on validating don't call is_learning
+    q = [0.4, 45]
+    if is_learnig:
+        configure_progress(5, 0.4, "Learning")
+        classifier.learn(all_records, report_progress)
+    else:
+        q = [0.8, 5]
+    configure_progress(q[1], q[0], "Processing data")
+    processed_data = classifier.process_database(all_records, report_progress)
+
+    configure_progress(85, 0.05, "Saving new db")
+    if save_converted:
+        _columns = processed_data[0].keys()
+        with open("learning.csv", mode="w", encoding="utf-8") as converted:
+            converted.write(",".join(_columns) + "\n")
+            converted.write("\n".join([",".join([str(value[col]) for col in _columns]) for value in processed_data]))
+
+    configure_progress(95, 0.1, "Classifing")
+    resultOkWrong = dict()
+    for i, expected in enumerate(target_values):
+        result = classifier.classify(processed_data[i])
+        if expected not in resultOkWrong:
+            resultOkWrong[expected] = {"ok": 0, "wrong": 0}
+        resultOkWrong[expected]["ok" if expected == result else "wrong"] += 1
 
     rowOk = sum(entry["ok"] for _, entry in resultOkWrong.items())
     rowWrong = sum(entry["wrong"] for _, entry in resultOkWrong.items())
@@ -221,12 +184,14 @@ class ExpertSystemGUI():
 
             self.cmbProject = window.FindName("cmbProject")
             self.cmbProject.IsEnabled=True
-            self.cmbData = window.FindName("cmbData")
+            self.cmbDataTrain = window.FindName("cmbDataTrain")
+            self.cmbDataValid = window.FindName("cmbDataValid")
             self.cmbEval = window.FindName("cmbEval")
             self.viewScore = window.FindName("viewScore")
             self.btnStart = window.FindName("btnStart")
             self.btnStart.Click += lambda s, e: self.run_in_background(self.start_eval)
             self.prog = window.FindName("prog")
+            self.lblStatus = window.FindName("lblStatus")
 
             self.window_obj = window.FindName("window")
             self.window_obj.Loaded += lambda s, e: self.window_init()
@@ -288,7 +253,8 @@ class ExpertSystemGUI():
         
         path = self.currentPath()
         files = returnListFile(path, "csv")
-        self.refreshCombobox(self.cmbData, files)
+        self.refreshCombobox(self.cmbDataTrain, files, "train")
+        self.refreshCombobox(self.cmbDataValid, files, "valid")
         
         files = returnListFile(path, "py")
         self.refreshCombobox(self.cmbEval, files)
@@ -311,21 +277,30 @@ class ExpertSystemGUI():
         self.GLOBAL_RESULT = result
         return result
 
-    def currentCsvFile(self):
+    def currentTrainCsvFile(self):
         """
         Current file name of CSV database
         """
 
-        result = self.cmbData.SelectedValue + ".csv"
+        result = self.cmbDataTrain.SelectedValue + ".csv"
         self.GLOBAL_RESULT = result
         return result
 
-    def currentCsvFilePath(self):
+    def currentValidCsvFile(self):
+        """
+        Current file name of CSV database
+        """
+
+        result = self.cmbDataValid.SelectedValue + ".csv"
+        self.GLOBAL_RESULT = result
+        return result
+
+    def currentCsvFilePath(self, train=False):
         """
         Current file path to CSV database
         """
 
-        result = os.path.join(self.currentPath(), self.currentCsvFile())
+        result = os.path.join(self.currentPath(), self.currentTrainCsvFile() if train else self.currentValidCsvFile())
         self.GLOBAL_RESULT = result
         return result
 
@@ -340,13 +315,14 @@ class ExpertSystemGUI():
         self.GLOBAL_RESULT = result
         return result
 
-    def refreshCombobox(self, obj, data):
+    def refreshCombobox(self, obj, data, select=None):
         """
         Refreshes combo box 'obj' items based on 'data'
 
         :Args:
             * obj: ComboBox object [str]
             * data: list of object to be put on combobox options [list of obj]
+            * select: which data to select [obj]
         """
 
         def setItems(obj, data):
@@ -354,7 +330,8 @@ class ExpertSystemGUI():
             for entry in data:
                 obj.Items.Add(entry)
             if len(data):
-                obj.SelectedIndex = 0
+                pos = data.index(select) if select is not None and select in data else 0
+                obj.SelectedIndex = pos
             else:
                 obj.Items.Add("err: not found any matches")
                 self.btnStart.IsEnabled = False
@@ -382,36 +359,50 @@ class ExpertSystemGUI():
             self.btnStart.IsEnabled = True
 
         try:
+            self.configure_progress_tasks(0, 0.5, 9)
+
             self.execute_on_gui(
                 f"Initializing evaluation",
                 lambda: init(self.viewScore)
             )
+            self.configure_progress(0, 0, "Initialization..", False)
             self.reportProgress(0)
 
-            self.execute_on_gui(f"Get CSV file name", lambda: self.currentCsvFile())
-            csvFile = self.GLOBAL_RESULT
-            self.execute_on_gui(f"Get CSV file path", lambda: self.currentCsvFilePath())
-            csvFilePath = self.GLOBAL_RESULT
-            self.execute_on_gui(f"Get evaluator file path", lambda: self.currentEvalModulePath())
+            self.execute_on_gui(f"Get Train CSV file path", lambda: self.currentCsvFilePath(True))
+            csvTrainFilePath = self.GLOBAL_RESULT
+            self.execute_on_gui(f"Get Validation CSV file path", lambda: self.currentCsvFilePath())
+            csvValidFilePath = self.GLOBAL_RESULT
+            self.execute_on_gui(f"Get classifier file path", lambda: self.currentEvalModulePath())
             evalFilePath = self.GLOBAL_RESULT
 
-            evaluator = importlib.import_module(evalFilePath)
+            classifier = importlib.import_module(evalFilePath)
 
-            # summary of testing
-            result = examineFile(
-                csvFilePath, evaluator=evaluator,
-                reportProgress=self.reportProgress)
 
-            # unlock to see each recognized row
-            #convertedDb(csvFilePath, "_" + csvFile, evaluator=evaluator)
+            examineFile(
+                dbFilePath=csvTrainFilePath,
+                classifier=classifier,
+                configure_progress=self.configure_progress,
+                report_progress=self.reportProgress,
+                is_learnig=True,
+                save_converted=True)
+
+            self.configure_progress_tasks(50, 0.5, 9, 6)
+            result_validating = examineFile(
+                dbFilePath=csvValidFilePath,
+                classifier=classifier,
+                configure_progress=self.configure_progress,
+                report_progress=self.reportProgress,
+                is_learnig=False)
 
             self.execute_on_gui(
                 f"Updating score",
-                lambda: setItems(self.viewScore, result)
+                lambda: setItems(self.viewScore, result_validating)
             )
+            self.configure_progress(100, 0, "Result ready!")
             self.reportProgress(100)
         except Exception as ex:
             LOGGER.error(ex)
+            traceback.print_exc()
             self.reportProgress(0)
 
     def run_in_background(self, method):
@@ -434,19 +425,57 @@ class ExpertSystemGUI():
         """
 
         def setProgress(val):
+            reported = val
+            val = self.report_global_base + self.report_global_multiplier*(self.report_base + self.report_multiplier*val)
             if val < 0:
                 val = 0
             if val > 100:
                 val = 100
             self.prog.Value = val
+            msg = f"{self.report_name} "
+            if self.report_current_task >= 1 and self.report_current_task <= self.report_task_all:
+                msg += f"({self.report_current_task}/{self.report_task_all}) "
+            msg += f"[{reported}%]"
+            self.lblStatus.Content = msg
 
         try:
             self.execute_on_gui(
-                f"Updating progrses",
+                f"Updating progress",
                 lambda: setProgress(prog)
             )
         except Exception as ex:
             LOGGER.error(ex)
+
+    def configure_progress(self, base, multiplier, name, update=True):
+        """
+        Prepares for displating additional status info
+
+        :Args:
+            * base: currently used up progress [float 0:100]
+            * multiplier: max progress of current operation relative to all [float 0:100]
+            * name: name of status to be displayed [float 0:100]
+            * current_task: current task id [int]
+        """
+
+        self.report_base = base
+        self.report_multiplier = multiplier
+        self.report_name = name
+        if update:
+            self.report_current_task += 1
+        self.reportProgress(0)
+
+    def configure_progress_tasks(self, global_base, global_multiplier, task_count, current_task=0):
+        """
+        Prepares for displating additional status info
+
+        :Args:
+            * task_base: base for current task base [int]
+        """
+
+        self.report_global_base = global_base
+        self.report_global_multiplier = global_multiplier
+        self.report_task_all = task_count
+        self.report_current_task = current_task
 
 ## Run GUI if main.py is run directly
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
 Logs
 *.csv
 __pycache__
+.vscode/.ropeproject/objectdb
+.vscode/.ropeproject/config.py
