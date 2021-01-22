@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
 		Name="window"
-        Title="Ewaulator Systemu Ekspertowego" Height="450" Width="392.5">
+        Title="Ewaluator Systemu Ekspertowego" Height="450" Width="392.5">
     <Grid>
 
         <GroupBox x:Name="groupConfig" Header="Konfiguracja" Height="176" Margin="10,10,10,0" VerticalAlignment="Top">
