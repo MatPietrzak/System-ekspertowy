@@ -2,16 +2,13 @@ import utility
 import math
 import os
 
-TAG_KEYWORDCOUNTFIRSTPAR = "KeywordCountFirstPar"
-TAG_KEYWORDCOUNTLASTPAR = "KeywordCountLastPar"
+
 TAG_KEYWORDCOUNT20PCT = "KeywordCount20Pct"
 TAG_KEYWORDCOUNT50PCT = "KeywordCount50Pct"
 TAG_KEYWORDDENSITY = "KeywordDensity"
 TAG_ALLWORDSCOUNT = "AllWordsCount"
 TAG_RATIOREMOVEDTOALL = "RatioRemovedToAll"
 TAG_TEXTVECTORDENSITY = "TextVectorDensity"
-TAG_FIRSTKEYWORD = "FirstKeyword"
-TAG_MOSTFREQUENTKEYWORD = "MostFrequentKeyword"
 
 TAG_PARAGRAPHS_COUNT = "ParagraphsCount"
 TAG_CODE_FIELDS = "CodeParagraphsCount"
@@ -19,16 +16,13 @@ TAG_POPULAR_TAG = "MostPopularTag"
 TAG_AVG_POS_TAG = "AveragePositionOfAllTags"
 
 COLUMNS_OPTIONS = [
-    #(TAG_KEYWORDCOUNTFIRSTPAR, True),
-    #(TAG_KEYWORDCOUNTLASTPAR, True),
     (TAG_KEYWORDCOUNT20PCT, True),
     (TAG_KEYWORDCOUNT50PCT, True),
     (TAG_KEYWORDDENSITY, True),
     (TAG_ALLWORDSCOUNT, False),
     (TAG_RATIOREMOVEDTOALL, True),
     (TAG_TEXTVECTORDENSITY, True),
-    #(TAG_FIRSTKEYWORD, False),
-    #(TAG_MOSTFREQUENTKEYWORD, False),
+
     (TAG_PARAGRAPHS_COUNT, False),
     (TAG_CODE_FIELDS, False),
     (TAG_POPULAR_TAG, False),
@@ -79,7 +73,6 @@ def learn(data, report_progress):
 
 def process_database(data, report_progress):
     global IDFS, TAGS
-
     processed_data = []
 
     reporter = utility.ProgressCounter(len(data), report_progress)
@@ -107,43 +100,33 @@ def process_database(data, report_progress):
         # all keywords in text, duplicates, same order
         #words_only_keywords = [word for word in words_clean if word in keywords]
 
-        # 2.1.1  count of keywords in first paragraph
-        #C1 = None
-        # 2.1.2  count of keywords in last paragraph
-        #C2 = None
-        # 2.1.3  count of keywords in first 20%
+        # C.1  count of keywords in first 20%
         words_20pct = words_all[:int(0.2*L)]
         keywords_20pct = [word for word in words_20pct if word in keywords]
-        C3 = len(keywords_20pct)
-        # 2.1.4  count of keywords in first 50%
+        C1 = len(keywords_20pct)
+        # C.2  count of keywords in first 50%
         words_50pct = words_all[:int(0.5*L)]
         keywords_50pct = [word for word in words_50pct if word in keywords]
-        C4 = len(keywords_50pct)
-        # 2.1.5  density of keywords
+        C2 = len(keywords_50pct)
+        # C.3  density of keywords
         Q = sum([words_counter[word] for word in keywords if word in words_counter])
-        C5 = Q / L if L > 0 else 0
-        # 2.1.6  count of all words
-        C6 = L
-        # 2.1.7  ratio of removed words to all words
-        C7 = Z / L if L > 0 else 0
-        # 2.1.8  density of text vector
+        C3 = Q / L if L > 0 else 0
+        # C.4  count of all words
+        C4= L
+        # C.5  ratio of removed words to all words
+        C5 = Z / L if L > 0 else 0
+        # C.6  density of text vector
         T = sum([words_counter[word] for word in words_clean])
-        C8 = Q / T if T > 0 else 0
-        # 2.1.9  first keyword in text
-        #C9 = words_only_keywords[0] if words_only_keywords else "(empty)"
-        # 2.1.10 most frequent keyword in text
-        #words_only_keywords_counter = utility.count_objects_instances(words_only_keywords)
-        #k_vector = [(counter, word) for word, counter in words_only_keywords_counter.items()]
-        #k_vector.sort(reverse=True)
-        #C10 = k_vector[0][1] if k_vector else "(empty)"
-
-        PARAGRAPHS = len(record["Body"].split("<p>")) - 1
-        CODE_FIELDS = len(record["Body"].split("<code>")) - 1
+        C6 = Q / T if T > 0 else 0
+        # C.7 count of paragraphs
+        C7 = len(record["Body"].split("<p>")) - 1
+        # C.8 count of <code> tag
+        C8 = len(record["Body"].split("<code>")) - 1
         filtered_tags = [TAGS.index(tag) for tag in tags if tag in TAGS]
-        POPULAR_TAG = min(filtered_tags) if filtered_tags else 0
-        TAG_AVG_POS_TAG = sum(filtered_tags)/len(filtered_tags) if filtered_tags else 0
+        C9 = min(filtered_tags) if filtered_tags else 0
+        C10 = sum(filtered_tags)/len(filtered_tags) if filtered_tags else 0
 
-        ready_vector = [C3, C4, C5, C6, C7, C8, PARAGRAPHS, CODE_FIELDS, POPULAR_TAG, TAG_AVG_POS_TAG]
+        ready_vector = [C1, C2, C3, C4, C5, C6, C7, C8, C9, C10]
         if "Y" in record:
             ready_vector.append(record["Y"])
             COLUMNS_OPTIONS.append(("Y", False))
