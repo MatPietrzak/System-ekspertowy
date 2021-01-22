@@ -39,7 +39,7 @@ COLUMNS = [option[0] for option in COLUMNS_OPTIONS]
 
 IDFS = dict()
 TAGS = list()
-KEYWORD_THRESHOLD = 0.002
+KEYWORD_THRESHOLD = 0
 MINIMUM_DFI = 100
 
 def learn(data, report_progress):
@@ -170,17 +170,19 @@ def classify(data):
     **Returns**
         Recognized category
     """
-
-    if data[TAG_TEXTVECTORDENSITY] <= 0.09988 or data[TAG_PARAGRAPHS_COUNT] == 0:
+    #Catch LQ_EDIT
+    if data[TAG_PARAGRAPHS_COUNT] <= 0:
         return "LQ_EDIT"
-
+    #Catch LQ_CLOSE
     if data[TAG_AVG_POS_TAG] <= 15.8:
         return "LQ_CLOSE"
-    else:
-        if data[TAG_POPULAR_TAG] <= 11 and data[TAG_PARAGRAPHS_COUNT] <= 1:
-            if data[TAG_KEYWORDCOUNT50PCT] <= 0.00282:
+    if data[TAG_POPULAR_TAG] <= 10:
+        if data[TAG_CODE_FIELDS] <= 2:
+            if data[TAG_KEYWORDCOUNT50PCT] < 0.00880705:
                 return "LQ_CLOSE"
-            elif data[TAG_KEYWORDCOUNT50PCT] > 0.00282 and data[TAG_RATIOREMOVEDTOALL] <= 0.0652:
+            elif data[TAG_POPULAR_TAG] > 4:
                 return "LQ_CLOSE"
-
+    elif data[TAG_CODE_FIELDS] <= 1 and data[TAG_AVG_POS_TAG] <= 58 and data[TAG_POPULAR_TAG] <= 21:
+        return "LQ_CLOSE"
+    #Catch HQ
     return "HQ"
